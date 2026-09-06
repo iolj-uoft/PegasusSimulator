@@ -69,7 +69,7 @@ class PegasusApp:
 
         Multirotor(
             "/World/quadrotor",
-            ROBOTS['Pegasus'],
+            ROBOTS['Iris'],
             0,
             [0.0, 0.0, 0.07],
             Rotation.from_euler("XYZ", [0.0, 0.0, 0.0], degrees=True).as_quat(),
