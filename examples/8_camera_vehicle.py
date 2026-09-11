@@ -79,7 +79,8 @@ class PegasusApp:
         mavlink_config = PX4MavlinkBackendConfig({
             "vehicle_id": 0,
             "px4_autolaunch": True,
-            "px4_dir": "/home/marcelo/PX4-Autopilot"
+            "px4_dir": self.pg.px4_path,
+            "px4_vehicle_model": self.pg.px4_default_airframe
         })
         config_multirotor.backends = [
             PX4MavlinkBackend(mavlink_config), 
@@ -92,7 +93,7 @@ class PegasusApp:
                             "sub_control": False,})]
 
         # Create a camera and lidar sensors
-        config_multirotor.graphical_sensors = [MonocularCamera("camera", config={"update_rate": 60.0})]
+        config_multirotor.graphical_sensors = [MonocularCamera("camera", config={"update_rate": 60.0, "depth": False})]
         
         Multirotor(
             "/World/quadrotor",
