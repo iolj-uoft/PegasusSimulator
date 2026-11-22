@@ -104,7 +104,8 @@ class MonocularCamera(GraphicalSensor):
             resolution=self._resolution)
         
         # Set the camera position locally with respect to the drone
-        self._camera.set_local_pose(np.array(self._position), Rotation.from_euler("ZYX", self._orientation, degrees=True).as_quat())
+        q = Rotation.from_euler("ZYX", self._orientation, degrees=True).as_quat()  # x,y,z,w
+        self._camera.set_local_pose(np.array(self._position), np.array([q[3], q[0], q[1], q[2]]))
         
     def start(self):
 
