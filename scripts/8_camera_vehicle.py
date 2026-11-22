@@ -23,6 +23,7 @@ import omni.timeline
 from omni.isaac.core.world import World
 
 from omni.isaac.core.objects import DynamicCuboid
+from pxr import UsdGeom, UsdShade, Sdf, Gf
 import numpy as np
 
 # Import the Pegasus API for simulating drones
@@ -62,7 +63,8 @@ class PegasusApp:
 
         # Launch one of the worlds provided by NVIDIA
         self.pg.load_environment(SIMULATION_ENVIRONMENTS["Curved Gridroom"])
-
+        self.add_apriltag(self.world.stage, "/World/landing_pad", "/home/austin/PegasusSimulator/assets/tag36h11_id0.png", size=0.5, pos=(2.0, 0.0, 0.002))   # 2 mm up to avoid z-fighting with the floor
+        
         cube_2 = self.world.scene.add(
             DynamicCuboid(
                 prim_path="/new_cube_2",
@@ -129,7 +131,7 @@ class PegasusApp:
                             "sub_control": False,})]
 
         # Create a camera and lidar sensors
-        config_multirotor.graphical_sensors = [MonocularCamera("camera", config={"update_rate": 60.0, "depth": False, "orientation": np.array([0.0, 90.0, 0.0])})]
+        config_multirotor.graphical_sensors = [MonocularCamera("camera", config={"update_rate": 60.0, "depth": False, "resolution": (640, 480), "orientation": np.array([0.0, 90.0, 0.0])})]
         
         Multirotor(
             "/World/quadrotor",
@@ -164,6 +166,40 @@ class PegasusApp:
         self.timeline.stop()
         simulation_app.close()
 
+    def add_apriltag(self, stage, path, png_path, size, pos):
+        """size = full printed square including the white border (m)."""
+        h = size / 2
+        mesh = UsdGeom.Mesh.Define(stage, path)
+        mesh.CreatePointsAttr([(-h, -h, 0), (h, -h, 0), (h, h, 0), (-h, h, 0)])
+        mesh.CreateFaceVertexCountsAttr([4])
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+        mesh.CreateNormalsAttr([(0, 0, 1)] * 4)
+        mesh.SetNormalsInterpolation("vertex")
+        UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+            "st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex
+        ).Set([(0, 0), (1, 0), (1, 1), (0, 1)])
+        UsdGeom.XformCommonAPI(mesh).SetTranslate(Gf.Vec3d(*pos))
+
+        mat = UsdShade.Material.Define(stage, path + "_mat")
+        pbr = UsdShade.Shader.Define(stage, path + "_mat/pbr")
+        pbr.CreateIdAttr("UsdPreviewSurface")
+        pbr.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(1.0)   # matte, no glare
+
+        reader = UsdShade.Shader.Define(stage, path + "_mat/st")
+        reader.CreateIdAttr("UsdPrimvarReader_float2")
+        reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
+        st_out = reader.CreateOutput("result", Sdf.ValueTypeNames.Float2)
+
+        tex = UsdShade.Shader.Define(stage, path + "_mat/tex")
+        tex.CreateIdAttr("UsdUVTexture")
+        tex.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(png_path)
+        tex.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(st_out)
+        rgb_out = tex.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
+
+        pbr.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(rgb_out)
+        mat.CreateSurfaceOutput().ConnectToSource(pbr.CreateOutput("surface", Sdf.ValueTypeNames.Token))
+        UsdShade.MaterialBindingAPI(mesh).Bind(mat)
+        
 def main():
 
     # Instantiate the template app
